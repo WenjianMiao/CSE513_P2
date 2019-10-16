@@ -22,8 +22,8 @@ int GlobalTime = 0;
 
 int my_id = 0;
 
-#define R_IP = "192.168.1.25"
-#define R_PORT = 8080
+#define R_IP "192.168.1.25"
+#define R_PORT 8080
 
 struct data_and_dependency {
   string key;
@@ -46,9 +46,9 @@ void* sendReplicatedWrite(void* vargp)
   struct sockaddr_in serv_addr;
   char buffer[1024] = {0};
 
-  if((sock = socket(AF_INET, SOCK_STREAM, 0)) < ){
+  if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0 ){
     printf("\n socket creation error\n");
-    return ;
+    return NULL ;
   }
 
   serv_addr.sin_family = AF_INET;
@@ -56,12 +56,12 @@ void* sendReplicatedWrite(void* vargp)
 
   if(inet_pton(AF_INET, R_IP, &serv_addr.sin_addr) <= 0){
     printf("invalid address\n");
-    return ;
+    return NULL ;
   }
 
   if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
     printf("Connect failed\n");
-    return ;
+    return NULL;
   }
 
   char* command = "replicated_write";
