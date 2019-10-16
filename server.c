@@ -22,10 +22,53 @@ int GlobalTime = 0;
 
 int my_id = 0;
 
-void* myThreadFun(void* vargp)
+#define R_IP = "192.168.1.25"
+#define R_PORT = 8080
+
+struct data_and_dependency {
+  string key;
+  int value;
+  map< string, vector< tuple<int, int> > > client_dep;
+};
+
+
+void* sendReplicatedWrite(void* vargp)
 {
-  sleep(10);
-  printf("Sleep\n");
+  struct data_and_dependency *args = (struct data_and_dependency *) vargp;
+  string key = args->key;
+  int value = args->value;
+  map< string, vector< tuple<int, int> > > client_dep = args->client_dep;
+
+
+  sleep(5);
+
+  int sock = 0, valread;
+  struct sockaddr_in serv_addr;
+  char buffer[1024] = {0};
+
+  if((sock = socket(AF_INET, SOCK_STREAM, 0)) < ){
+    printf("\n socket creation error\n");
+    return ;
+  }
+
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_port = htons(R_PORT);
+
+  if(inet_pton(AF_INET, R_IP, &serv_addr.sin_addr) <= 0){
+    printf("invalid address\n");
+    return ;
+  }
+
+  if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
+    printf("Connect failed\n");
+    return ;
+  }
+
+  char* command = "replicated_write";
+  send(sock, command, strlen(command), 0);
+
+
+  delete args;
   return NULL;
 }
 
@@ -169,7 +212,11 @@ int main(){
 
 
           pthread_t thread_id;
-          pthread_create(&thread_id, NULL, myThreadFun, NULL);
+          struct data_and_dependency *args = new data_and_dependency;
+          args->key = key;
+          args->value = value;
+          args->client_dep = nearest;
+          pthread_create(&thread_id, NULL, sendReplicatedWrite, args);
         }
 
         if(strcmp(command,"read")==0){
@@ -240,6 +287,11 @@ int main(){
         }
 
 
+        if(strcmp(command, "replicated_write")==0){
+          // deal with replicated_write request
+
+          cout<<"Hello world"<<endl;
+        }
       }
 
     }
