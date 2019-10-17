@@ -346,13 +346,11 @@ int main(){
             this_key = tmp1;
 
             vector< tuple<int, int> > this_version_list;
-            client_dep[this_key] = this_version_list;
 
             int num_deps_for_key;
             sscanf(buffer+index,"%d", &num_deps_for_key);
             index += to_string(num_deps_for_key).length() + 1;
 
-            cout<<"NUM_deps for key: "<<num_deps_for_key<<endl;
 
             for(int k=0; k<num_deps_for_key; k++){
               int timestamp, server_id;
@@ -360,8 +358,9 @@ int main(){
               index += to_string(timestamp).length() + to_string(server_id).length() + 2;
               this_version_list.push_back(make_tuple(timestamp, server_id));
 
-              cout<<"Pair :"<<timestamp<<" "<<server_id<<endl;
             }
+
+            client_dep[this_key] = this_version_list;
           }
 
 
