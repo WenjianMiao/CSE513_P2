@@ -352,6 +352,8 @@ int main(){
             sscanf(buffer+index,"%d", &num_deps_for_key);
             index += to_string(num_deps_for_key).length() + 1;
 
+            cout<<"NUM_deps for key: "<<num_deps_for_key<<endl;
+
             for(int k=0; k<num_deps_for_key; k++){
               int timestamp, server_id;
               sscanf(buffer+index,"%d %d", &timestamp, &server_id);
