@@ -84,6 +84,8 @@ void* sendReplicatedWrite(void* vargp)
 
   send(sock, buffer, strlen(buffer), 0);
 
+  printf("BUFFER: %s\n", buffer);
+
 
   delete args;
   return NULL;
