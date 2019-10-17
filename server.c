@@ -357,6 +357,15 @@ int main(){
           }
 
 
+          //print this client_dep
+          for(auto it = client_dep.begin(); it!= client_dep.end(); it++){
+            cout<<it->first<<": ";
+            for(auto jt = it->second.begin(); jt!=it->second.end(); jt++){
+              cout<<get<0>(*jt)<<"  "<<get<1>(*jt);
+            }
+            cout<<endl;
+          }
+
 
         }
       }
