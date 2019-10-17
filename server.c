@@ -339,7 +339,7 @@ int main(){
           for(int j=0; j<num_keys; j++){
             string this_key;
             char tmp1[20];
-            sscanf(buffer, "%s", tmp1);
+            sscanf(buffer+index, "%s", tmp1);
             index += strlen(tmp1) + 1;
             this_key = tmp1;
 
