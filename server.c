@@ -359,6 +359,8 @@ int main(){
               sscanf(buffer+index,"%d %d", &timestamp, &server_id);
               index += to_string(timestamp).length() + to_string(server_id).length() + 2;
               this_version_list.push_back(make_tuple(timestamp, server_id));
+
+              cout<<"Pair :"<<timestamp<<" "<<server_id<<endl;
             }
           }
 
