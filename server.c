@@ -64,8 +64,25 @@ void* sendReplicatedWrite(void* vargp)
     return NULL;
   }
 
-  char* command = "replicated_write";
-  send(sock, command, strlen(command), 0);
+
+  //prepare the data sent
+  sprintf(buffer, "replicated_write ");
+  sprintf(buffer + strlen(buffer),"%s ",key.c_str());
+  sprintf(buffer + strlen(buffer),"%d ",value);
+
+  int num_keys = client_dep.size();
+  sprintf(buffer + strlen(buffer),"%d ", num_keys);
+  for(auto it = client_dep.begin(); it != client_dep.end(); ++it){
+    sprintf(buffer + strlen(buffer), "%s ",it->first.c_str());
+    int num_deps_for_key = it->second.size();
+    sprintf(buffer + strlen(buffer), "%d ", num_deps_for_key);
+    for(auto jt = it->second.begin(); jt != it->second.end(); ++jt){
+      sprintf(buffer + strlen(buffer), "%d %d ", get<0>(*jt), get<1>(*jt));
+    }
+  }
+
+
+  send(sock, buffer, strlen(buffer), 0);
 
 
   delete args;
@@ -73,6 +90,15 @@ void* sendReplicatedWrite(void* vargp)
 }
 
 int main(){
+  char  test[200] = "hello world 333 hehe";
+  char s[10],t[10],h[20];
+  int d;
+  char g[10];
+  sscanf(test,"%s",s);
+  sscanf(test+strlen(s)+1,"%s",t);
+  sscanf(test+strlen(s)+strlen(t)+2, "%d", &d);
+  sscanf(test+strlen(s)+strlen(t)+to_string(d).length() + 3, "%s", h);
+  printf("%s %s %d %s\n", s,t,d,h);
   map<string, tuple<int, int, int> > storage;
 
 
@@ -290,7 +316,48 @@ int main(){
         if(strcmp(command, "replicated_write")==0){
           // deal with replicated_write request
 
-          cout<<"Hello world"<<endl;
+          //parse the key, value, and dependency
+          string key;
+          char tmp[20];
+          int index = 0;
+          sscanf(buffer, "%s %s", command, tmp);
+          index += strlen(command) + strlen(tmp) +2;
+          key = tmp;
+
+          int value;
+          sscanf(buffer+index,"%d", &value);
+          index += to_string(value).length() +1;
+
+          map< string, vector< tuple<int, int> > > client_dep;
+
+          int num_keys;
+          sscanf(buffer+index,"%d", &num_keys);
+          index += to_string(num_keys).length() +1;
+
+          for(int j=0; j<num_keys; j++){
+            string this_key;
+            char tmp1[20];
+            sscanf(buffer, "%s", tmp1);
+            index += strlen(tmp1) + 1;
+            this_key = tmp1;
+
+            vector< tuple<int, int> > this_version_list;
+            client_dep[this_key] = this_version_list;
+
+            int num_deps_for_key;
+            sscanf(buffer+index,"%d", &num_deps_for_key);
+            index += to_string(num_deps_for_key).length() + 1;
+
+            for(int k=0; k<num_deps_for_key; k++){
+              int timestamp, server_id;
+              sscanf(buffer+index,"%d %d", &timestamp, &server_id);
+              index += to_string(timestamp).length() + to_string(server_id).length() + 2;
+              this_version_list.push_back(make_tuple(timestamp, server_id));
+            }
+          }
+
+
+
         }
       }
 
