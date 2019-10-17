@@ -14,6 +14,7 @@
 #include <tuple>
 #include <errno.h>
 #include <pthread.h>
+#include <algorithm>
 #define PORT 8080
 
 using namespace std;
@@ -30,6 +31,10 @@ struct data_and_dependency {
   int value;
   map< string, vector< tuple<int, int> > > client_dep;
 };
+
+
+
+void* checkDependency(void* vargp);
 
 
 void* sendReplicatedWrite(void* vargp)
@@ -91,17 +96,15 @@ void* sendReplicatedWrite(void* vargp)
   return NULL;
 }
 
+
+//storage system: key -> value, timestamp, server_id
+map<string, tuple<int, int, int> > storage;
+//log history: key -> [timestamp, server_id, timestamp, server_id, ...,]
+map<string, vector< tuple<int, int> > > histlog;
+//pending dependency check lists: [data_and_dependency, data_and_dependency, ..., ]
+vector< struct data_and_dependency > pending_check_list;
+
 int main(){
-  char  test[200] = "hello world 333 hehe";
-  char s[10],t[10],h[20];
-  int d;
-  char g[10];
-  sscanf(test,"%s",s);
-  sscanf(test+strlen(s)+1,"%s",t);
-  sscanf(test+strlen(s)+strlen(t)+2, "%d", &d);
-  sscanf(test+strlen(s)+strlen(t)+to_string(d).length() + 3, "%s", h);
-  printf("%s %s %d %s\n", s,t,d,h);
-  map<string, tuple<int, int, int> > storage;
 
 
   map<int, map<string, vector<tuple<int, int> > > > dependency;
@@ -240,7 +243,7 @@ int main(){
 
 
           pthread_t thread_id;
-          struct data_and_dependency *args = new data_and_dependency;
+          struct data_and_dependency *args = new struct data_and_dependency;
           args->key = key;
           args->value = value;
           args->client_dep = nearest;
@@ -372,6 +375,38 @@ int main(){
             }
             cout<<endl;
           }
+
+
+          //check if client_dep is satisfied or not
+          int satisfied = 1;
+          for(auto it = client_dep.begin(); it!= client_dep.end(); ++it){
+            string this_key = it->first;
+            auto temp = histlog.find(this_key);
+            if(temp == histlog.end()){
+              satisfied = 0;
+              break;
+            }
+            vector< tuple<int, int> > this_key_log = histlog[this_key];
+            for(auto jt = it->second.begin(); jt!=it->second.end(); ++jt){
+              if( find(this_key_log.begin(), this_key_log.end(), make_tuple(get<0>(*jt),get<1>(*jt))) == this_key_log.end() ){
+                satisfied = 0;
+                break;
+              }
+            }
+            if(satisfied == 0){
+              break;
+            }
+          }
+
+          if(satisfied == 0){
+            //if dep check failed, add this client_dep to the pending_check_list
+            struct data_and_dependency temp;
+            temp.key = key;
+            temp.value = value;
+            temp.client_dep = client_dep;
+            pending_check_list.push_back(temp);
+          }
+
 
 
         }
