@@ -328,6 +328,8 @@ int main(){
           sscanf(buffer+index,"%d", &value);
           index += to_string(value).length() +1;
 
+          cout<<"Received replicated request of "<<key<<"  "<<value<<endl;
+
           map< string, vector< tuple<int, int> > > client_dep;
 
           int num_keys;
