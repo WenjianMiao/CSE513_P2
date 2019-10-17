@@ -29,6 +29,7 @@ int my_id = 0;
 struct data_and_dependency {
   string key;
   int value;
+  tuple<int, int> version;
   map< string, vector< tuple<int, int> > > client_dep;
 };
 
@@ -42,6 +43,7 @@ void* sendReplicatedWrite(void* vargp)
   struct data_and_dependency *args = (struct data_and_dependency *) vargp;
   string key = args->key;
   int value = args->value;
+  tuple<int, int> version = args->version;
   map< string, vector< tuple<int, int> > > client_dep = args->client_dep;
 
 
@@ -74,6 +76,7 @@ void* sendReplicatedWrite(void* vargp)
   sprintf(buffer, "replicated_write ");
   sprintf(buffer + strlen(buffer),"%s ",key.c_str());
   sprintf(buffer + strlen(buffer),"%d ",value);
+  sprintf(buffer + strlen(buffer),"%d %d ", get<0>(version), get<1>(version));
 
   int num_keys = client_dep.size();
   sprintf(buffer + strlen(buffer),"%d ", num_keys);
@@ -228,9 +231,20 @@ int main(){
           int value;
           sscanf(buffer, "%s %s %d", command, tmp, &value);
           key = tmp;
-          int timestamp = GlobalTime + 1;
+          int timestamp = GlobalTime;
           GlobalTime++;
           storage[key] = make_tuple(value, timestamp, my_id);
+
+          if(histlog.find(key) == histlog.end()){
+            vector< tuple<int, int> > key_log;
+            key_log.push_back(make_tuple(timestamp, my_id));
+            histlog[key] = key_log;
+          }
+          else{
+            histlog[key].push_back(make_tuple(timestamp, my_id));
+          }
+
+
 
           // reply to client
           send(sd, "OK", strlen("OK"), 0);
@@ -246,6 +260,7 @@ int main(){
           struct data_and_dependency *args = new struct data_and_dependency;
           args->key = key;
           args->value = value;
+          args->version = make_tuple(timestamp, my_id);
           args->client_dep = nearest;
           pthread_create(&thread_id, NULL, sendReplicatedWrite, args);
         }
@@ -261,8 +276,7 @@ int main(){
           value = get<0>(storage[key]);
           timestamp = get<1>(storage[key]);
 
-          map<string, vector<tuple<int, int> > >::iterator it;
-          if(it != dependency[client_id].find(key)){
+          if(dependency[client_id].find(key) != dependency[client_id].end()){
             // when there already exists a key, we need to add more versions.
             dependency[client_id][key].push_back( make_tuple(timestamp, my_id) );
           }
@@ -332,6 +346,11 @@ int main(){
           int value;
           sscanf(buffer+index,"%d", &value);
           index += to_string(value).length() +1;
+
+          int timestamp, server_id;
+          sscanf(buffer+index,"%d %d", &timestamp, &server_id);
+          index += to_string(timestamp).length() + to_string(server_id).length() + 2;
+          tuple<int, int> version = make_tuple(timestamp, server_id);
 
           cout<<"Received replicated request of "<<key<<"  "<<value<<endl;
 
@@ -403,18 +422,106 @@ int main(){
             struct data_and_dependency temp;
             temp.key = key;
             temp.value = value;
+            temp.version = version;
             temp.client_dep = client_dep;
             pending_check_list.push_back(temp);
           }
 
+          else{
+            // dep check passed, commit this replicated write request, add histlog info, update global time, issue new check for pending_check_list.
+            storage[key] = make_tuple(value, get<0>(version), get<1>(version));
 
 
+            if(histlog.find(key) == histlog.end()){
+              vector< tuple<int, int> > key_log;
+              key_log.push_back(make_tuple(get<0>(version), get<1>(version)));
+              histlog[key] = key_log;
+            }
+            else{
+              histlog[key].push_back(make_tuple(get<0>(version), get<1>(version)));
+            }
+
+            if (GlobalTime > get<0>(version)){
+              GlobalTime ++;
+            }
+            else{
+              GlobalTime = get<0>(version) + 1;
+            }
+
+            int loop = 1;
+            while(loop){
+
+              loop = 0;
+
+              if(pending_check_list.size() == 0){
+                loop = 0;
+              }
+
+              else{
+                for(auto it = pending_check_list.begin(); it != pending_check_list.end(); ++it){
+                  string pending_key = it->key;
+                  int pending_value = it->value;
+                  tuple<int, int> pending_version = it->version;
+                  map< string, vector< tuple<int, int> > > pending_client_dep = it->client_dep;
+
+                  satisfied = 1;
+                  for(auto jt = pending_client_dep.begin(); jt!= pending_client_dep.end(); ++jt){
+                    string this_key = jt->first;
+                    auto temp = histlog.find(this_key);
+                    if(temp == histlog.end()){
+                      satisfied = 0;
+                      break;
+                    }
+                    vector< tuple<int, int> > this_key_log = histlog[this_key];
+                    for(auto kt = jt->second.begin(); kt != jt->second.end(); ++kt){
+                      if( find(this_key_log.begin(), this_key_log.end(), make_tuple(get<0>(*kt),get<1>(*kt))) == this_key_log.end() ){
+                        satisfied = 0;
+                        break;
+                      }
+                    }
+                    if(satisfied == 0){
+                      break;
+                    }
+                  }
+
+                  if(satisfied == 1){
+                    // dep check passed, commit this replicated write request, add histlog info, update global time, delete this dep from pending_check_list,  issue new check for pending_check_list
+                    storage[pending_key] = make_tuple(pending_value, get<0>(pending_version), get<1>(pending_version));
+
+                    if(histlog.find(pending_key) == histlog.end()){
+                      vector< tuple<int ,int> > key_log;
+                      key_log.push_back(make_tuple(get<0>(pending_version), get<1>(pending_version)));
+                      histlog[pending_key] = key_log;
+                    }
+                    else{
+                      histlog[pending_key].push_back(make_tuple(get<0>(pending_version), get<1>(pending_version)));
+                    }
+
+                    if (GlobalTime > get<0>(pending_version)){
+                      GlobalTime ++;
+                    }
+                    else{
+                      GlobalTime = get<0>(pending_version) + 1;
+                    }
+
+                    pending_check_list.erase(it);
+
+                    loop = 1;
+
+                    break;
+
+
+
+                  }
+                }
+              }
+            }
+          }
         }
       }
-
     }
-
   }
+
 
   return 0;
 }
