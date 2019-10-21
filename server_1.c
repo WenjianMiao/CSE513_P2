@@ -15,16 +15,16 @@
 #include <errno.h>
 #include <pthread.h>
 #include <algorithm>
-#define PORT 8080
+#define PORT 8081
 
 using namespace std;
 
 int GlobalTime = 0;
 
-int my_id = 0;
+int my_id = 1;
 
 #define R_IP1 "104.39.68.199"
-#define R_PORT1 8081
+#define R_PORT1 8080
 #define R_IP2 "104.39.68.199"
 #define R_PORT2 8082
 
@@ -75,80 +75,86 @@ void* sendReplicatedWrite(void* vargp)
 
   printf("Send replicated write request to remote servers. key: %s, value: %d\n", key.c_str(), value);
 
-  int sock = 0, valread;
-  struct sockaddr_in serv_addr;
+  int sock1 = 0, sock2=0, valread;
+  struct sockaddr_in serv_addr1;
+  struct sockaddr_in serv_addr2;
   
-  if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0 ){
+  if((sock1 = socket(AF_INET, SOCK_STREAM, 0)) < 0 ){
+    printf("\n socket creation error\n");
+    return NULL ;
+  }
+  if((sock2 = socket(AF_INET, SOCK_STREAM, 0 )) < 0 ){
     printf("\n socket creation error\n");
     return NULL ;
   }
 
-  serv_addr.sin_family = AF_INET;
+  serv_addr1.sin_family = AF_INET;
+  serv_addr2.sin_family = AF_INET;
   
   if(interval1 <= interval2){
     sleep(interval1);
-    serv_addr.sin_port = htons(R_PORT1);
+    serv_addr1.sin_port = htons(R_PORT1);
     
-    if(inet_pton(AF_INET, R_IP1, &serv_addr.sin_addr) <= 0){
+    if(inet_pton(AF_INET, R_IP1, &serv_addr1.sin_addr) <= 0){
     printf("invalid address\n");
     return NULL ;
     }
 
-    if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
+    if(connect(sock1, (struct sockaddr*)&serv_addr1, sizeof(serv_addr1)) < 0){
       printf("Connect failed\n");
       return NULL;
     }
 
-    send(sock, buffer, strlen(buffer), 0);
+    send(sock1, buffer, strlen(buffer), 0);
 
     sleep(interval2-interval1);
-    serv_addr.sin_port = htons(R_PORT2);
+    serv_addr2.sin_port = htons(R_PORT2);
 
-    if(inet_pton(AF_INET, R_IP2, &serv_addr.sin_addr) <= 0){
+    if(inet_pton(AF_INET, R_IP2, &serv_addr2.sin_addr) <= 0){
       printf("invalid address\n");
       return NULL ;
     }
 
-    if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
+    if(connect(sock2, (struct sockaddr*)&serv_addr2, sizeof(serv_addr2)) < 0){
       printf("Connect failed\n");
       return NULL;
     }
 
-    send(sock, buffer, strlen(buffer), 0);
+    send(sock2, buffer, strlen(buffer), 0);
 
   }
 
   else{
     sleep(interval2);
 
-    serv_addr.sin_port = htons(R_PORT2);
+    serv_addr2.sin_port = htons(R_PORT2);
     
-    if(inet_pton(AF_INET, R_IP2, &serv_addr.sin_addr) <= 0){
+    if(inet_pton(AF_INET, R_IP2, &serv_addr2.sin_addr) <= 0){
     printf("invalid address\n");
     return NULL ;
     }
 
-    if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
+    if(connect(sock2, (struct sockaddr*)&serv_addr2, sizeof(serv_addr2)) < 0){
       printf("Connect failed\n");
       return NULL;
     }
 
-    send(sock, buffer, strlen(buffer), 0);
+    send(sock2, buffer, strlen(buffer), 0);
 
     sleep(interval1-interval2);
-    serv_addr.sin_port = htons(R_PORT1);
+    serv_addr1.sin_port = htons(R_PORT1);
 
-    if(inet_pton(AF_INET, R_IP1, &serv_addr.sin_addr) <= 0){
+    if(inet_pton(AF_INET, R_IP1, &serv_addr1.sin_addr) <= 0){
       printf("invalid address\n");
       return NULL ;
     }
 
-    if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
+    if(connect(sock1, (struct sockaddr*)&serv_addr1, sizeof(serv_addr1)) < 0){
       printf("Connect failed\n");
       return NULL;
     }
 
-    send(sock, buffer, strlen(buffer), 0);
+    send(sock1, buffer, strlen(buffer), 0);
   }
 
 
@@ -337,17 +343,19 @@ int main(){
 
           int value;
           int timestamp;
+	  int server_id;
           value = get<0>(storage[key]);
           timestamp = get<1>(storage[key]);
+	  server_id = get<2>(storage[key]);
 
           if(dependency[client_id].find(key) != dependency[client_id].end()){
             // when there already exists a key, we need to add more versions.
-            dependency[client_id][key].push_back( make_tuple(timestamp, my_id) );
+            dependency[client_id][key].push_back( make_tuple(timestamp, server_id) );
           }
           else{
             // create a vector to store the dependency of this key
             vector< tuple<int,int> > key_deps;
-            key_deps.push_back( make_tuple(timestamp, my_id) );
+            key_deps.push_back( make_tuple(timestamp, server_id) );
             dependency[client_id][key] = key_deps;
           }
 
@@ -449,7 +457,6 @@ int main(){
 
             client_dep[this_key] = this_version_list;
           }
-
 
 
 

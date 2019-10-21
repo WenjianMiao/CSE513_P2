@@ -3,7 +3,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
-#define PORT 8080
+#define PORT 8081
 #define IP "104.39.68.199"
 
 int main(){
@@ -13,7 +13,7 @@ int main(){
   char* command2 = "write x 100 0 0";
   char* command3 = "write y 200 0 10";
   char* command4 = "read y";
-  char* command5 = "write z 500 2";
+  char* command5 = "write z 500 0 2";
   char* command6 = "show_dep";
   char* command7 = "disconnect";
   char buffer[1024] = {0};
@@ -42,7 +42,7 @@ int main(){
   valread = read(sock, buffer, 1024);
   printf("%s\n", buffer);
 
-  
+  /*
   printf("Send write request, to set value of x to be 100\n");
   memset(buffer, 0, sizeof(buffer));
   send(sock, command2, strlen(command2), 0);
@@ -54,8 +54,9 @@ int main(){
   send(sock, command3, strlen(command3), 0);
   valread = read(sock, buffer, 1024);
   printf("%s\n", buffer);
+  */
 
-  /*
+  
   printf("Send read request, read value of y\n");
   memset(buffer, 0, sizeof(buffer));
   send(sock, command4, strlen(command4), 0);
@@ -67,7 +68,7 @@ int main(){
   send(sock, command5, strlen(command5), 0);
   valread = read(sock, buffer, 1024);
   printf("%s\n", buffer);
-  */
+  
 
 
   printf("Send disconnect request\n");
